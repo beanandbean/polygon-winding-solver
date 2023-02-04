@@ -4,7 +4,7 @@ import HTMLWebPlugin from "html-webpack-plugin";
 
 const config: webpack.Configuration = {
   mode: "development",
-  entry: "./src/main.ts",
+  entry: path.resolve(__dirname, "src", "main.ts"),
   module: {
     rules: [
       {
@@ -23,7 +23,7 @@ const config: webpack.Configuration = {
   },
   plugins: [
     new HTMLWebPlugin({
-      template: "./public/index.html",
+      template: path.resolve(__dirname, "public", "index.html"),
     }),
   ],
 };

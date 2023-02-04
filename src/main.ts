@@ -1,12 +1,19 @@
-import triangulate, { Triangle, Triangulator } from "./lib/triangulate";
-import { sqrDist, Point } from "./lib/utils";
 import earcut, { flatten } from "earcut";
+import cdt2d from "cdt2d";
+import triangulate, {
+  EdgeIndex,
+  LoopTriangulator,
+  PlaneGraphTriangulator,
+  Triangulator,
+  TriangulatorType,
+} from "./lib/triangulate";
+import { sqrDist, Edge, Point, Triangle } from "./lib/utils";
 
-class EarcutTriangulator implements Triangulator {
-  triangulate(loop: Point[], holes: Point[][]) {
-    const data = flatten(
-      [loop, ...holes].map((loop) => loop.map((p) => [p.x, p.y]))
-    );
+class EarcutTriangulator implements LoopTriangulator {
+  readonly type = TriangulatorType.loop;
+
+  triangulate(points: Point[], loop: number[]) {
+    const data = flatten([loop.map((p) => [points[p]!.x, points[p]!.y])]);
     const verts = earcut(data.vertices, data.holes, data.dimensions);
 
     const vertex = (index: number): Point => ({
@@ -26,6 +33,28 @@ class EarcutTriangulator implements Triangulator {
   }
 }
 
+class CDT2DTriangulator implements PlaneGraphTriangulator {
+  readonly type = TriangulatorType.planeGraph;
+
+  triangulate(points: Point[], edges: EdgeIndex[]) {
+    const pointArray = points.map<EdgeIndex>((p) => [p.x, p.y]);
+    const trigs = cdt2d(pointArray, edges, { exterior: false });
+    return trigs.map<Triangle>((t) => [
+      points[t[0]]!,
+      points[t[1]]!,
+      points[t[2]]!,
+    ]);
+  }
+}
+
+const TRIANGULATORS: {
+  [key: string]: Triangulator;
+} = {
+  earcut: new EarcutTriangulator(),
+  cdt2d: new CDT2DTriangulator(),
+};
+let triangulator: Triangulator | undefined = undefined;
+
 const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 const context = canvas.getContext("2d")!;
 
@@ -38,10 +67,7 @@ const drawTriangle = (context: CanvasRenderingContext2D, points: Triangle) => {
   context.lineTo(points[0].x, points[0].y);
 };
 
-const drawEdge = (
-  context: CanvasRenderingContext2D,
-  points: [Point, Point]
-) => {
+const drawEdge = (context: CanvasRenderingContext2D, points: Edge) => {
   context.moveTo(points[0].x, points[0].y);
   context.lineTo(points[1].x, points[1].y);
 };
@@ -58,19 +84,10 @@ const drawPoint = (
 const draw = () => {
   context.clearRect(0, 0, canvas.width, canvas.height);
 
-  context.fillStyle = "black";
-  context.font = "20px sans-serif";
-  const texts = [
-    "Click to add a point",
-    "Shift+click to start new path",
-    "Ctrl+click to erase",
-    "Hold alt to snap to grid",
-  ];
-  for (const [i, text] of texts.entries()) {
-    context.fillText(text, 20, 40 + i * 20);
-  }
-
-  const computed = triangulate(paths, new EarcutTriangulator(), true);
+  const computed =
+    triangulator === undefined
+      ? triangulate(paths)
+      : triangulate(paths, triangulator);
   console.log(`${computed.trigs.length} triangles!`);
 
   context.fillStyle = "#99FF99";
@@ -161,6 +178,20 @@ canvas.addEventListener("mousedown", (event) => {
     draw();
   }
 });
+
+for (const elem of document.querySelectorAll('input[name="trig"]')) {
+  const input = elem as HTMLInputElement;
+  if (input.checked) {
+    triangulator = TRIANGULATORS[input.value];
+  }
+
+  input.addEventListener("change", () => {
+    if (input.checked) {
+      triangulator = TRIANGULATORS[input.value];
+      draw();
+    }
+  });
+}
 
 const resizeCanvas = () => {
   canvas.width = window.innerWidth;

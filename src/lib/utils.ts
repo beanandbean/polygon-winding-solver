@@ -23,6 +23,7 @@ const THRESHOLD = 1e-8;
 
 export type Point = { x: number; y: number };
 export type Edge = [Point, Point];
+export type Triangle = [Point, Point, Point];
 
 export const isZero = (x: number) => x > -THRESHOLD && x < THRESHOLD;
 export const equals = (p: Point, q: Point) =>
@@ -39,49 +40,24 @@ export const dot = (a: Point, b: Point, c: Point) =>
 export const area = (a: Point, b: Point, c: Point) =>
   (a.x - b.x) * (c.y - b.y) - (a.y - b.y) * (c.x - b.x);
 
+export const edgeBox = (edge: Edge): [Point, Point] => {
+  const x0 = edge[0].x < edge[1].x ? edge[0].x : edge[1].x;
+  const x1 = edge[0].x > edge[1].x ? edge[0].x : edge[1].x;
+  const y0 = edge[0].y < edge[1].y ? edge[0].y : edge[1].y;
+  const y1 = edge[0].y > edge[1].y ? edge[0].y : edge[1].y;
+  return [
+    { x: x0 - THRESHOLD, y: y0 - THRESHOLD },
+    { x: x1 + THRESHOLD, y: y1 + THRESHOLD },
+  ];
+};
+
 export const direction = (edge: Edge) =>
   Math.atan2(edge[1].y - edge[0].y, edge[1].x - edge[0].x);
 
 export const contains = (edge: Edge, target: Point) =>
   isZero(area(edge[0], target, edge[1])) && dot(edge[0], target, edge[1]) < 0;
 
-export const horizontalHit = (edge: Edge, y: number) => {
-  if ((edge[0].y < y && edge[1].y < y) || (edge[0].y >= y && edge[1].y >= y)) {
-    return undefined;
-  } else {
-    let ratio = (y - edge[0].y) / (edge[1].y - edge[0].y);
-    if (ratio < 0) {
-      ratio = 0;
-    } else if (ratio > 1) {
-      ratio = 1;
-    }
-    return edge[0].x + ratio * (edge[1].x - edge[0].x);
-  }
-};
-
-export const leftRayTest = (edge: Edge, source: Point) => {
-  const hit = horizontalHit(edge, source.y);
-  if (hit === undefined) {
-    return false;
-  } else {
-    return hit + THRESHOLD < source.x;
-  }
-};
-
-export const loopContains = (loop: Point[], target: Point) => {
-  let count = 0;
-  forEachPair(
-    loop.values(),
-    (prev, current) => {
-      count += leftRayTest([prev, current], target) ? 1 : 0;
-    },
-    true
-  );
-  return count % 2 === 1;
-};
-
-// assumes four points are distinct, intersection not on ends,
-// and do not treat overlap situations.
+// assumes four points are distinct, intersection not on ends, and do not treat overlap situations.
 // thus it suffices to compute matrix inverse
 export const intersect = (edge: Edge, other: Edge): Point | undefined => {
   const a = edge[1].x - edge[0].x;
@@ -104,3 +80,91 @@ export const intersect = (edge: Edge, other: Edge): Point | undefined => {
     }
   }
 };
+
+export const triangleBox = (trig: Triangle): [Point, Point] => {
+  const x0 =
+    trig[0].x < trig[1].x
+      ? trig[0].x < trig[2].x
+        ? trig[0].x
+        : trig[2].x
+      : trig[1].x < trig[2].x
+      ? trig[1].x
+      : trig[2].x;
+  const x1 =
+    trig[0].x > trig[1].x
+      ? trig[0].x > trig[2].x
+        ? trig[0].x
+        : trig[2].x
+      : trig[1].x > trig[2].x
+      ? trig[1].x
+      : trig[2].x;
+  const y0 =
+    trig[0].y < trig[1].y
+      ? trig[0].y < trig[2].y
+        ? trig[0].y
+        : trig[2].y
+      : trig[1].y < trig[2].y
+      ? trig[1].y
+      : trig[2].y;
+  const y1 =
+    trig[0].y > trig[1].y
+      ? trig[0].y > trig[2].y
+        ? trig[0].y
+        : trig[2].y
+      : trig[1].y > trig[2].y
+      ? trig[1].y
+      : trig[2].y;
+  return [
+    { x: x0 - THRESHOLD, y: y0 - THRESHOLD },
+    { x: x1 + THRESHOLD, y: y1 + THRESHOLD },
+  ];
+};
+
+// barycentric triangle hit-testing, with origin at `trig[1]`
+// points precisely on the edges are also counted as hits
+export class HitTestTriangle {
+  origin: Point;
+  p1: Point;
+  p2: Point;
+
+  box: [Point, Point];
+  det: number; // `det === 0` means no triangle
+
+  constructor(trig: Triangle) {
+    this.origin = trig[1];
+    this.p1 = { x: trig[0].x - trig[1].x, y: trig[0].y - trig[1].y };
+    this.p2 = { x: trig[2].x - trig[1].x, y: trig[2].y - trig[1].y };
+    this.box = triangleBox(trig);
+
+    this.det = this.p1.x * this.p2.y - this.p1.y * this.p2.x;
+    if (!isZero(this.det)) {
+      if (this.det > 0) {
+        this.det += THRESHOLD;
+      } else {
+        this.det -= THRESHOLD;
+      }
+    }
+  }
+
+  // no safety checking; output unreliable if `this.det === 0`
+  contains(point: Point) {
+    if (
+      point.x > this.box[0].x &&
+      point.x < this.box[1].x &&
+      point.y > this.box[0].y &&
+      point.y < this.box[1].y
+    ) {
+      const x = point.x - this.origin.x;
+      const y = point.y - this.origin.y;
+      const u = this.p2.y * x - this.p2.x * y;
+      const v = this.p1.x * y - this.p1.y * x;
+      if (this.det > 0) {
+        return u > -THRESHOLD && v > -THRESHOLD && u + v < this.det;
+      } else {
+        return u < THRESHOLD && v < THRESHOLD && u + v > this.det;
+      }
+    } else {
+      return false;
+    }
+  }
+}

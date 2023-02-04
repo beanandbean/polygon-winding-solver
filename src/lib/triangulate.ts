@@ -1,120 +1,115 @@
-import AdjacencyGraph from "./adj_graph";
-import { LoopForest } from "./loop_forest";
-import { Point } from "./utils";
+import AdjacencyGraph, { PointEntry } from "./adj_graph";
+import LoopList from "./loop_list";
+import GraphSimplifier from "./graph_simp";
+import EarcutTriangulator from "./earcut";
+import { Edge, Point, Triangle } from "./utils";
 
 // throughout whole implementation we assume the following axes direction:
 // positive-x is towards the right, positive-y is towards the bottom.
 // also assumed positive winding number means clockwise
 
+export enum TriangulatorType {
+  planeGraph,
+  loop,
+}
+
+export type EdgeIndex = [number, number];
+
+export interface PlaneGraphTriangulator {
+  readonly type: TriangulatorType.planeGraph;
+
+  // this triangulator triangulates a whole graph simultaneously;
+  // interior is decided using even-odd rule.
+  // can assume that `edges` are clockwise around the interior
+  triangulate(points: Point[], edges: EdgeIndex[]): Triangle[];
+}
+
+export interface LoopTriangulator {
+  readonly type: TriangulatorType.loop;
+
+  // this triangulator triangulates a loop at a time;
+  // assumes points in `loop` are in clockwise order
+  triangulate(points: Point[], loop: number[]): Triangle[];
+}
+
+export type Triangulator = PlaneGraphTriangulator | LoopTriangulator;
+
+class PointTranslator {
+  entries: PointEntry[];
+
+  points = new Array<Point>();
+  indices = new Map<number, number>();
+
+  constructor(entries: PointEntry[]) {
+    this.entries = entries;
+  }
+
+  translate(i: number) {
+    if (!this.indices.has(i)) {
+      this.indices.set(i, this.points.length);
+      this.points.push(this.entries[i]!.coord);
+    }
+    return this.indices.get(i)!;
+  }
+}
+
 export type Result = {
   trigs: Triangle[];
 
-  // `edges` are counter-clockwise around triangulated region
-  edges: [Point, Point][];
-  // `conns` contains edges whose both sides have winding number zero
-  conns: [Point, Point][];
+  // `edges` are exterior edges, in clockwise direction around triangulated region
+  edges: Edge[];
+  // `conns` contains edges whose both sides are exterior regions
+  conns: Edge[];
 };
-
-export type Triangle = [Point, Point, Point];
-export interface Triangulator {
-  // assumes `loop` is clockwise, `holes` are counterclockwise
-  triangulate(loop: Point[], holes: Point[][]): Triangle[];
-}
 
 const triangulate = (
   paths: Point[][],
-  triangulator: Triangulator,
-  // set `cleanup` to `true` to pass through loop builder twice,
-  // which will result in a simplified graph and fewer triangles
-  cleanup: boolean = false
+  triangulator: Triangulator = new EarcutTriangulator()
 ): Result => {
   const graph = new AdjacencyGraph();
   for (const path of paths) {
     graph.addPath(path);
   }
+  graph.connectPaths();
   graph.computeDirections();
 
-  let loopForest = new LoopForest(graph.entries);
-  loopForest.buildLoops();
-  loopForest.computeWindingNumbers();
+  const loopList = new LoopList(graph);
+  loopList.buildLoops();
+  loopList.computeWindingNumbers();
 
-  const edges = new Array<[Point, Point]>();
-  const conns = new Array<[Point, Point]>();
-  for (const [i, iEntry] of graph.entries.entries()) {
-    for (const [j, path] of iEntry.conns.entries()) {
-      const winding = loopForest.windingNumberForLoop(path.loop);
-      if (winding === 0) {
-        const jEntry = graph.entries[j]!;
-        const opposite = loopForest.windingNumberForLoop(
-          jEntry.conns.get(i)!.loop
-        );
-        if (opposite === 0) {
-          if (i < j) {
-            conns.push([iEntry.coord, jEntry.coord]);
-          }
-        } else {
-          edges.push([iEntry.coord, jEntry.coord]);
-        }
-      }
+  const graphSimplifier = new GraphSimplifier(loopList);
+  const result = graphSimplifier.runSimplifyGraph(
+    triangulator.type === TriangulatorType.loop
+  );
+
+  let trigs: Triangle[];
+  if (triangulator.type === TriangulatorType.planeGraph) {
+    const translator = new PointTranslator(graph.entries);
+    const edges = result.edges.map<EdgeIndex>((edge) => [
+      translator.translate(edge[0]),
+      translator.translate(edge[1]),
+    ]);
+    trigs = triangulator.triangulate(translator.points, edges);
+  } else {
+    trigs = [];
+    for (const loop of result.loops) {
+      const translator = new PointTranslator(graph.entries);
+      const loopIndices = loop.map((i) => translator.translate(i));
+
+      trigs.push(...triangulator.triangulate(translator.points, loopIndices));
     }
   }
 
-  if (cleanup) {
-    // after getting winding numbers, rebuild graph and loop forest
-    // using only edges with non-zero winding numbers on one side
-    const removes = graph.entries.map(() => new Set<number>());
-    for (const [i, iEntry] of graph.entries.entries()) {
-      for (const [j, path] of iEntry.conns.entries()) {
-        if (i < j) {
-          const winding = loopForest.windingNumberForLoop(path.loop);
-          const opposite = loopForest.windingNumberForLoop(
-            graph.entries[j]!.conns.get(i)!.loop
-          );
-          if (
-            (winding === 0 && opposite === 0) ||
-            (winding !== 0 && opposite !== 0)
-          ) {
-            removes[i]!.add(j);
-            removes[j]!.add(i);
-          }
-        }
-      }
-    }
-
-    for (const [i, iEntry] of graph.entries.entries()) {
-      const r = removes[i]!;
-      if (r.size > 0) {
-        for (const remove of r) {
-          iEntry.conns.delete(remove);
-        }
-        iEntry.directions = iEntry.directions.filter((i) => !r.has(i));
-      }
-
-      for (const path of iEntry.conns.values()) {
-        path.loop = undefined;
-      }
-    }
-
-    loopForest = new LoopForest(graph.entries);
-    loopForest.buildLoops();
-    loopForest.computeWindingNumbers(true);
-  }
-
-  const trigs = [];
-  for (const node of loopForest.loops) {
-    for (const interior of node.interior) {
-      if (interior.winding !== 0) {
-        const loop = interior.loop.map((index) => graph.entries[index]!.coord);
-        const holes = interior.children.map((n) =>
-          loopForest.loops[n]!.exterior.map(
-            (index) => graph.entries[index]!.coord
-          )
-        );
-        trigs.push(...triangulator.triangulate(loop, holes));
-      }
-    }
-  }
-
-  return { trigs, edges, conns };
+  return {
+    trigs,
+    edges: result.edges.map((edge) => [
+      graph.entries[edge[0]]!.coord,
+      graph.entries[edge[1]]!.coord,
+    ]),
+    conns: result.conns.map((edge) => [
+      graph.entries[edge[0]]!.coord,
+      graph.entries[edge[1]]!.coord,
+    ]),
+  };
 };
 export default triangulate;
