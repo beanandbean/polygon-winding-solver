@@ -1,13 +1,16 @@
 import earcut, { flatten } from "earcut";
 import cdt2d from "cdt2d";
 import triangulate, {
+  Edge,
   EdgeIndex,
   LoopTriangulator,
   PlaneGraphTriangulator,
+  Point,
+  Triangle,
   Triangulator,
   TriangulatorType,
-} from "./lib/triangulate";
-import { sqrDist, Edge, Point, Triangle } from "./lib/utils";
+} from "../../lib";
+import { sqrDist } from "../../lib/utils";
 
 class EarcutTriangulator implements LoopTriangulator {
   readonly type = TriangulatorType.loop;

@@ -1,15 +1,24 @@
 import path from "path";
 import webpack from "webpack";
 import HTMLWebPlugin from "html-webpack-plugin";
+import { env } from "process";
 
+const production = env["NODE_ENV"] === "production";
 const config: webpack.Configuration = {
-  mode: "development",
+  mode: production ? "production" : "development",
   entry: path.resolve(__dirname, "src", "main.ts"),
   module: {
     rules: [
       {
         test: /\.ts$/,
-        use: "ts-loader",
+        use: [
+          {
+            loader: "ts-loader",
+            options: {
+              configFile: path.resolve(__dirname, "tsconfig.example.json"),
+            },
+          },
+        ],
         exclude: /node_modules/,
       },
     ],
