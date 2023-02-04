@@ -189,7 +189,7 @@ export default class AdjacencyGraph {
                       this.entries.push(point);
                       segment.push({
                         index,
-                        sqrDist: sqrDist(intersection, startEntry.coord),
+                        sqrDist: sqrDist(intersection, edgeData.edge[0]),
                       });
                       break;
                     }
