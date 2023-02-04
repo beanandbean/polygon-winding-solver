@@ -42,7 +42,7 @@ To use a custom triangulator, you need to wrap it in a class implementing either
 ### Loop triangulator
 
 ```typescript
-export interface LoopTriangulator {
+interface LoopTriangulator {
   readonly type: TriangulatorType.loop;
 
   // this triangulator triangulates a loop at a time;
