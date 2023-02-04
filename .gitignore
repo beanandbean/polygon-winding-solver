@@ -1,5 +1,3 @@
-lib/
-
 # --- Node.gitignore ---
 
 # Logs
@@ -216,3 +214,7 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+
+# --- project-specific files ---
+lib/
+!example/dist/

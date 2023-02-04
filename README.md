@@ -2,7 +2,7 @@
 
 A small utility to find interior regions of a plane graph consisting of multiple directed polygon paths according to the [non-zero winding rule](https://en.wikipedia.org/wiki/Nonzero-rule) and triangulate the interior.
 
-You can build the demo by running `yarn build-example`. The demo will be available at `example/dist/index.html`.
+A [demo](https://beanandbean.github.io/polygon-winding-solver/example/dist/) is available via GitHub Pages. The local version is available at `example/dist/index.html`, and is built by running `yarn build-example`.
 
 ## Usage
 
@@ -26,7 +26,7 @@ This produces the following triangulation:
 
 ![Simple graph triangulation](imgs/simple_graph.png)
 
-(Code to visualise the results is not part of the library. It can be found in the demo.)
+(Code to visualise the results is not part of the library. It can be found in the [demo](example/src/main.ts).)
 
 The triangulation results are produced in the following format:
  - `result.trigs` stores an list of three-element arrays denoting the three vertices of each triangle (the light green triangles in the diagram above);
@@ -37,7 +37,7 @@ The triangulation results are produced in the following format:
 
 The winding number solver is designed to separate from the triangulation implementation and can feed its result into different triangulators. The builtin triangulator is a simplified version of the [earcut](https://github.com/mapbox/earcut) package.
 
-To use a custom triangulator, you need to wrap it in a class implementing either of the following two interfaces, and pass an instance of the class as the second argument when calling `triangulate`. Example wrappers for using the original [earcut](https://github.com/mapbox/earcut) package and the [cdt2d](https://github.com/mikolalysenko/cdt2d) package can be found in the demo.
+To use a custom triangulator, you need to wrap it in a class implementing either of the following two interfaces, and pass an instance of the class as the second argument when calling `triangulate`. Example wrappers for using the original [earcut](https://github.com/mapbox/earcut) package and the [cdt2d](https://github.com/mikolalysenko/cdt2d) package can be found in the [demo](example/src/main.ts).
 
 ### Loop triangulator
 
