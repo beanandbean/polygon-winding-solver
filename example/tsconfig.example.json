@@ -4,5 +4,6 @@
     "declaration": false,
     "outDir": "./dist",
     "typeRoots": ["./types"]
-  }
+  },
+  "include": ["./src"]
 }
