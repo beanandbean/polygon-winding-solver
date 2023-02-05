@@ -9,8 +9,7 @@ import triangulate, {
   Triangle,
   Triangulator,
   TriangulatorType,
-} from "../../lib";
-import { sqrDist } from "../../lib/utils";
+} from "../..";
 
 class EarcutTriangulator implements LoopTriangulator {
   readonly type = TriangulatorType.loop;
@@ -161,7 +160,7 @@ canvas.addEventListener("mousedown", (event) => {
       for (const path of paths) {
         const newPath = new Array<Point>();
         for (const point of path) {
-          const sqrd = sqrDist(point, { x, y });
+          const sqrd = Math.pow(point.x - x, 2) + Math.pow(point.y - y, 2);
           if (sqrd > Math.pow(10, 2)) {
             newPath.push(point);
           }

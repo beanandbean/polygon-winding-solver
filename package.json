@@ -1,7 +1,7 @@
 {
   "name": "polygon-winding-solver",
   "description": "Solve for polygon interior using the non-zero winding rule and triangulate",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "author": "beanandbean",
   "license": "MIT",
   "repository": "github:beanandbean/polygon-winding-solver",

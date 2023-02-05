@@ -29,8 +29,9 @@ export const isZero = (x: number) => x > -THRESHOLD && x < THRESHOLD;
 export const equals = (p: Point, q: Point) =>
   isZero(p.x - q.x) && isZero(p.y - q.y);
 
-export const sqrDist = (p: Point, q: Point) =>
-  Math.pow(p.x - q.x, 2) + Math.pow(p.y - q.y, 2);
+// 1-norm is the fastest norm to compute
+export const norm = (p: Point, q: Point) =>
+  Math.abs(p.x - q.x) + Math.abs(p.y - q.y);
 
 // dot product between (a - b) and (c - b)
 export const dot = (a: Point, b: Point, c: Point) =>

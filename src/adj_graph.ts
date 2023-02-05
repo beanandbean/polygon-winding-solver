@@ -5,7 +5,7 @@ import {
   equals,
   forEachPair,
   intersect,
-  sqrDist,
+  norm,
   Edge,
   Point,
 } from "./utils";
@@ -108,7 +108,7 @@ export default class AdjacencyGraph {
   private addEdge(start: number, end: number, ignore: boolean = false) {
     type PointWithDistance = {
       index: number;
-      sqrDist: number;
+      norm: number;
     };
 
     if (start != end) {
@@ -128,11 +128,11 @@ export default class AdjacencyGraph {
           checked[i] = true;
           intermediates.push({
             index: i,
-            sqrDist: sqrDist(existing.coord, startEntry.coord),
+            norm: norm(existing.coord, startEntry.coord),
           });
         }
       }
-      intermediates.sort((a, b) => a.sqrDist - b.sqrDist);
+      intermediates.sort((a, b) => a.norm - b.norm);
 
       // second step: find overlaps with existing edge
       const newIntermediates = new Array<PointWithDistance[]>();
@@ -143,10 +143,12 @@ export default class AdjacencyGraph {
           prevEntry.conns.get(current.index)!.repeat += winding;
           currentEntry.conns.get(prev.index)!.repeat -= winding;
         } else {
-          const sqrd = sqrDist(currentEntry.coord, prevEntry.coord);
           newIntermediates.push([
-            { index: prev.index, sqrDist: 0 },
-            { index: current.index, sqrDist: sqrd },
+            { index: prev.index, norm: 0 },
+            {
+              index: current.index,
+              norm: norm(currentEntry.coord, prevEntry.coord),
+            },
           ]);
         }
       });
@@ -189,7 +191,7 @@ export default class AdjacencyGraph {
                       this.entries.push(point);
                       segment.push({
                         index,
-                        sqrDist: sqrDist(intersection, edgeData.edge[0]),
+                        norm: norm(intersection, edgeData.edge[0]),
                       });
                       break;
                     }
@@ -201,7 +203,7 @@ export default class AdjacencyGraph {
         }
 
         for (const intermediates of newIntermediates) {
-          intermediates.sort((a, b) => a.sqrDist - b.sqrDist);
+          intermediates.sort((a, b) => a.norm - b.norm);
           forEachPair(intermediates.values(), (prev, current) => {
             this.entries[prev.index]!.addPath(current.index, winding, ignore);
             this.entries[current.index]!.addPath(prev.index, -winding, ignore);
